@@ -1,13 +1,33 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UploadCloud, FileText, ArrowRight, Zap, Target, Search, FileSearch, History, AlertTriangle, CheckCircle, MoreHorizontal } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
+import { auth } from '../firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 export default function Dashboard() {
+    const navigate = useNavigate();
+    const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(true);
     const [activeSection, setActiveSection] = useState('conflict');
     const [masterFile, setMasterFile] = useState(null);
     const [comparisonFile, setComparisonFile] = useState(null);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+    // Auth Guard
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            if (currentUser) {
+                setUser(currentUser);
+                setLoading(false);
+            } else {
+                setLoading(false);
+                navigate('/login');
+            }
+        });
+        return () => unsubscribe();
+    }, [navigate]);
 
     const navItems = [
         { id: 'conflict', label: 'Conflict Analysis', icon: Target },
@@ -41,21 +61,86 @@ export default function Dashboard() {
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
+    if (loading) {
+         return (
+             <div className="min-h-screen flex items-center justify-center bg-zinc-950 text-white">
+                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+             </div>
+         );
+    }
+
     const handleDrop = (e, type) => {
         e.preventDefault();
-        const file = { name: type === 'master' ? 'Master_Agreement_v1.pdf' : 'Addendum_2024.pdf' };
-        if (type === 'master') setMasterFile(file);
-        else setComparisonFile(file);
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            if (type === 'master') setMasterFile(files[0]);
+            else setComparisonFile(files[0]);
+        }
     };
 
-    const handleClick = (type) => {
-        const file = { name: type === 'master' ? 'Master_Agreement_v1.pdf' : 'Addendum_2024.pdf' };
-        if (type === 'master') setMasterFile(file);
-        else setComparisonFile(file);
+    const handleFileSelect = (e, type) => {
+        const files = e.target.files;
+        if (files.length > 0) {
+            if (type === 'master') setMasterFile(files[0]);
+            else setComparisonFile(files[0]);
+        }
     }
+
+    const handleClick = (type) => {
+        document.getElementById(`file-input-${type}`).click();
+    }
+
+    const handleAnalysis = async () => {
+        if (!masterFile || !comparisonFile || !user) return;
+
+        setIsAnalyzing(true);
+        const formData = new FormData();
+        formData.append('master', masterFile);
+        formData.append('candidate', comparisonFile);
+
+        try {
+            const idToken = await user.getIdToken();
+            const response = await fetch('http://localhost:3000/api/analyze', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${idToken}`
+                },
+                body: formData
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                navigate('/results', { state: { analysisResult: data } });
+            } else {
+                console.error("Analysis failed");
+                alert("Analysis failed. Please try again.");
+            }
+        } catch (error) {
+            console.error("Error during analysis:", error);
+            alert("Network error occurred.");
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
 
     return (
         <div className="min-h-screen pt-24 px-6 max-w-7xl mx-auto pb-40">
+
+            {/* Hidden Inputs for File Selection */}
+            <input 
+                type="file" 
+                id="file-input-master" 
+                className="hidden" 
+                accept=".pdf" 
+                onChange={(e) => handleFileSelect(e, 'master')} 
+            />
+            <input 
+                type="file" 
+                id="file-input-comparison" 
+                className="hidden" 
+                accept=".pdf" 
+                onChange={(e) => handleFileSelect(e, 'comparison')} 
+            />
 
             {/* Sticky Header / Sub-Navbar */}
             <div className="sticky top-20 z-40 bg-zinc-950/80 backdrop-blur-xl py-4 mb-8 -mx-6 px-6 border-b border-white/5">
@@ -98,6 +183,8 @@ export default function Dashboard() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {/* Master Dropzone */}
                                 <div
+                                    onDrop={(e) => handleDrop(e, 'master')}
+                                    onDragOver={(e) => e.preventDefault()}
                                     onClick={() => handleClick('master')}
                                     className={cn(
                                         "group relative h-64 rounded-2xl border-2 border-dashed transition-all duration-300 flex flex-col items-center justify-center cursor-pointer overflow-hidden bg-zinc-900/30",
@@ -111,7 +198,7 @@ export default function Dashboard() {
                                                     <FileText className="size-8" />
                                                 </div>
                                                 <p className="font-medium text-white">{masterFile.name}</p>
-                                                <p className="text-xs text-zinc-500 mt-1">PDF • 2.4 MB</p>
+                                                <p className="text-xs text-zinc-500 mt-1">{(masterFile.size / 1024 / 1024).toFixed(2)} MB</p>
                                             </motion.div>
                                         ) : (
                                             <motion.div className="text-center relative z-10 p-6">
@@ -127,6 +214,8 @@ export default function Dashboard() {
 
                                 {/* Comparison Dropzone */}
                                 <div
+                                    onDrop={(e) => handleDrop(e, 'comparison')}
+                                    onDragOver={(e) => e.preventDefault()}
                                     onClick={() => handleClick('comparison')}
                                     className={cn(
                                         "group relative h-64 rounded-2xl border-2 border-dashed transition-all duration-300 flex flex-col items-center justify-center cursor-pointer overflow-hidden bg-zinc-900/30",
@@ -140,7 +229,7 @@ export default function Dashboard() {
                                                     <FileText className="size-8" />
                                                 </div>
                                                 <p className="font-medium text-white">{comparisonFile.name}</p>
-                                                <p className="text-xs text-zinc-500 mt-1">PDF • 1.1 MB</p>
+                                                <p className="text-xs text-zinc-500 mt-1">{(comparisonFile.size / 1024 / 1024).toFixed(2)} MB</p>
                                             </motion.div>
                                         ) : (
                                             <motion.div className="text-center relative z-10 p-6">
@@ -156,20 +245,30 @@ export default function Dashboard() {
                             </div>
                             {/* Footer Action */}
                             <div className="mt-8 flex items-center justify-end border-t border-white/5 pt-6">
-                                <Link to="/results">
+                                
                                     <button
-                                        disabled={!masterFile || !comparisonFile}
+                                        onClick={handleAnalysis}
+                                        disabled={!masterFile || !comparisonFile || isAnalyzing}
                                         className={cn(
                                             "flex items-center gap-2 px-8 py-3 rounded-xl font-medium transition-all duration-300",
-                                            masterFile && comparisonFile
+                                            masterFile && comparisonFile && !isAnalyzing
                                                 ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg hover:shadow-blue-500/25 hover:scale-[1.02]"
                                                 : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
                                         )}
                                     >
-                                        <Zap className="size-4 fill-current" />
-                                        Run Analysis
+                                        {isAnalyzing ? (
+                                            <>
+                                                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/20 border-t-white"></div>
+                                                Analyzing...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Zap className="size-4 fill-current" />
+                                                Run Analysis
+                                            </>
+                                        )}
                                     </button>
-                                </Link>
+                                
                             </div>
                         </div>
                     </div>

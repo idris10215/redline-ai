@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, ShieldCheck, Zap, Split } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { auth } from '../firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 const fadeInUp = {
     hidden: { opacity: 0, y: 20 },
@@ -12,6 +15,15 @@ const stagger = {
 };
 
 export default function LandingPage() {
+    const [user, setUser] = useState(null);
+
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            setUser(currentUser);
+        });
+        return () => unsubscribe();
+    }, []);
+
     return (
         <div className="min-h-screen pt-24 pb-20 px-6 max-w-7xl mx-auto">
             {/* Hero Section */}
@@ -42,9 +54,9 @@ export default function LandingPage() {
                 </motion.p>
 
                 <motion.div variants={fadeInUp}>
-                    <Link to="/dashboard">
+                    <Link to={user ? "/dashboard" : "/login"}>
                         <button className="group relative px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-full font-semibold transition-all shadow-[0_0_40px_-10px_rgba(59,130,246,0.5)] hover:shadow-[0_0_60px_-10px_rgba(59,130,246,0.6)]">
-                            Launch Console
+                            {user ? "Go to Console" : "Launch Console"}
                             <ArrowRight className="inline-block ml-2 size-5 transition-transform group-hover:translate-x-1" />
                         </button>
                     </Link>

@@ -1,8 +1,52 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Lock } from 'lucide-react';
+import { useEffect } from 'react';
+
+import { auth, googleProvider } from '../firebase';
+import { useNavigate } from 'react-router-dom';
+import { signInWithPopup, onAuthStateChanged } from 'firebase/auth';
 
 export default function LoginPage() {
+
+    const navigate = useNavigate();
+
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            if (user) {
+                navigate('/dashboard');
+            }
+        });
+        return () => unsubscribe();
+    }, [navigate]);
+
+    const handleSIgnIn = async () => {
+        try {
+
+            const result = await signInWithPopup(auth, googleProvider);
+            const user = result.user;
+
+            const idToken = await user.getIdToken();
+
+            const response = await fetch('http://localhost:3000/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${idToken}`
+                }
+            });
+
+            if(response.ok) {
+                navigate('/dashboard');
+            } else {
+                console.error("Backend verification failed");
+            }
+            
+        } catch (error) {
+            console.error("Google sign-in failed", error);
+        }
+    }
+
     return (
         <div className="min-h-[80vh] flex items-center justify-center px-4">
             <motion.div
@@ -16,13 +60,12 @@ export default function LoginPage() {
                     <div className="inline-flex items-center justify-center size-12 rounded-full bg-blue-500/10 text-blue-400 mb-4">
                         <Lock className="size-5" />
                     </div>
-                    <h2 className="text-2xl font-bold text-white mb-2">Welcome Back</h2>
+                    <h2 className="text-2xl font-bold text-white mb-2">Welcome </h2>
                     <p className="text-zinc-400 text-sm">Sign in to access your LegalLens console</p>
                 </div>
 
                 <div className="space-y-4">
-                    <Link to="/dashboard">
-                        <button className="w-full flex items-center justify-center gap-3 bg-white text-zinc-950 font-medium py-3 rounded-xl hover:bg-zinc-100 transition-colors">
+                        <button onClick={handleSIgnIn} className="w-full flex items-center justify-center gap-3 bg-white text-zinc-950 font-medium py-3 rounded-xl hover:bg-zinc-100 transition-colors">
                             <svg className="size-5" viewBox="0 0 24 24">
                                 <path
                                     d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -43,7 +86,6 @@ export default function LoginPage() {
                             </svg>
                             Sign in with Google
                         </button>
-                    </Link>
                 </div>
 
                 <div className="mt-8 text-center">

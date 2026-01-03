@@ -1,38 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { AlertTriangle, CheckCircle, ChevronRight, MessageSquare, ArrowLeft } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { AlertTriangle, CheckCircle, ChevronRight, MessageSquare, ArrowLeft, Zap } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 import { cn } from '../lib/utils';
 
 export default function AnalysisResult() {
+    const { state } = useLocation();
     const [selectedConflict, setSelectedConflict] = useState(0);
 
-    const conflicts = [
-        {
-            id: 0,
-            title: "Payment Terms Mismatch",
-            severity: "High",
-            docA: "Payment shall be made within thirty (30) days of receipt of invoice.",
-            docB: "Payment terms are Net 90 days from the end of the month.",
-            explanation: "Document A requires Net-30 payment, but Document B implies Net-90. This creates a 60-day cash flow gap and violates the standard vendor agreement policy."
-        },
-        {
-            id: 1,
-            title: "Liability Cap Discrepancy",
-            severity: "Medium",
-            docA: "Total liability shall not exceed 100% of fees paid.",
-            docB: "Liability is capped at $5,000,000 USD regardless of fees paid.",
-            explanation: "The addendum introduces a fixed liability cap which may exceed the variable cap in the master agreement."
-        },
-        {
-            id: 2,
-            title: "Governing Law",
-            severity: "Low",
-            docA: "Governed by the laws of the State of California.",
-            docB: "Governed by the laws of New York.",
-            explanation: "Jurisdiction conflict detected. Usually the latest document prevails, but clarity is recommended."
-        }
-    ];
+    // Fallback data if page is accessed directly
+    const defaultData = {
+        riskScore: 0,
+        conflicts: []
+    };
+
+    const analysisData = state?.analysisResult?.mockAnalysis || defaultData;
+    const { riskScore, conflicts } = analysisData;
 
     return (
         <div className="min-h-screen pt-20 pb-10 px-6 max-w-[1600px] mx-auto overflow-hidden">
@@ -70,8 +53,11 @@ export default function AnalysisResult() {
                                 />
                             </svg>
                             <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                <span className="text-4xl font-bold text-white">75</span>
-                                <span className="text-xs text-red-400 font-bold uppercase mt-1">High Risk</span>
+                                <span className="text-4xl font-bold text-white">{riskScore}</span>
+                                <span className={cn(
+                                    "text-xs font-bold uppercase mt-1",
+                                    riskScore > 70 ? "text-red-400" : riskScore > 40 ? "text-yellow-400" : "text-green-400"
+                                )}>{riskScore > 70 ? "High Risk" : riskScore > 40 ? "Medium Risk" : "Low Risk"}</span>
                             </div>
                         </div>
                     </div>
@@ -111,39 +97,46 @@ export default function AnalysisResult() {
                     <div className="glass-panel p-6 rounded-2xl h-full flex flex-col">
                         <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider mb-6">Conflict Viewer</h2>
 
-                        <div className="flex-1 space-y-6">
-                            {/* Doc A */}
-                            <div className="group">
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="text-xs font-semibold text-blue-400 bg-blue-500/10 px-2 py-1 rounded">MASTER AGREEMENT</span>
-                                    <span className="text-xs text-zinc-500">Page 4, Clause 3.2</span>
+                        {conflicts.length > 0 ? (
+                            <div className="flex-1 space-y-6">
+                                {/* Doc A */}
+                                <div className="group">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-xs font-semibold text-blue-400 bg-blue-500/10 px-2 py-1 rounded">MASTER AGREEMENT</span>
+                                        {/* <span className="text-xs text-zinc-500">Page 4, Clause 3.2</span> */}
+                                    </div>
+                                    <div className="p-6 rounded-xl bg-zinc-950 border border-zinc-800 text-zinc-300 leading-relaxed font-mono text-sm relative overflow-hidden">
+                                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500/50"></div>
+                                        {conflicts[selectedConflict]?.masterText || "N/A"}
+                                    </div>
                                 </div>
-                                <div className="p-6 rounded-xl bg-zinc-950 border border-zinc-800 text-zinc-300 leading-relaxed font-mono text-sm relative overflow-hidden">
-                                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500/50"></div>
-                                    {conflicts[selectedConflict].docA}
-                                </div>
-                            </div>
 
-                            <div className="flex justify-center">
-                                <div className="bg-zinc-900 rounded-full p-2 border border-zinc-700">
-                                    <AlertTriangle className="size-5 text-red-500" />
+                                <div className="flex justify-center">
+                                    <div className="bg-zinc-900 rounded-full p-2 border border-zinc-700">
+                                        <AlertTriangle className="size-5 text-red-500" />
+                                    </div>
                                 </div>
-                            </div>
 
-                            {/* Doc B */}
-                            <div className="group">
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="text-xs font-semibold text-purple-400 bg-purple-500/10 px-2 py-1 rounded">COMPARISON DOC</span>
-                                    <span className="text-xs text-zinc-500">Page 1, Clause 1.4</span>
-                                </div>
-                                <div className="p-6 rounded-xl bg-zinc-950 border border-zinc-800 text-zinc-300 leading-relaxed font-mono text-sm relative overflow-hidden">
-                                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-purple-500/50"></div>
-                                    <span className="bg-red-500/20 text-red-100 rounded px-1 py-0.5 border-b border-red-500/50">
-                                        {conflicts[selectedConflict].docB}
-                                    </span>
+                                {/* Doc B */}
+                                <div className="group">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-xs font-semibold text-purple-400 bg-purple-500/10 px-2 py-1 rounded">COMPARISON DOC</span>
+                                        {/* <span className="text-xs text-zinc-500">Page 1, Clause 1.4</span> */}
+                                    </div>
+                                    <div className="p-6 rounded-xl bg-zinc-950 border border-zinc-800 text-zinc-300 leading-relaxed font-mono text-sm relative overflow-hidden">
+                                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-purple-500/50"></div>
+                                        <span className="bg-red-500/20 text-red-100 rounded px-1 py-0.5 border-b border-red-500/50">
+                                            {conflicts[selectedConflict]?.candidateText || "N/A"}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        ) : (
+                            <div className="flex-1 flex flex-col items-center justify-center text-zinc-500">
+                                <CheckCircle className="size-12 mb-4 text-green-500" />
+                                <p>No substantial conflicts detected.</p>
+                            </div>
+                        )}
                     </div>
                 </div>
 
